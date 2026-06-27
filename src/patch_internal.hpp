@@ -54,11 +54,7 @@ struct InlineHook
 
 struct Config
 {
-    bool enabled = true;
-    bool log = true;
-    bool console = false;
-    bool logAllDownloads = true;     // log every DownloadManager URL (helps identify voice files)
-    bool hookUnityWebRequest = true; // also redirect raw UnityWebRequest urls (voice_package_list)
+    bool logAllDownloads = true; // log every resource URL that carries the configured PC branch
     std::string fromSegment = "/pc/resources/";
     std::string toSegment = "/android/resources/";
     // A url is treated as voice (and therefore redirected) when it contains the
@@ -73,7 +69,6 @@ struct Config
 extern HMODULE g_module;
 extern std::wstring g_moduleDir;
 extern std::wstring g_logPath;
-extern std::wstring g_iniPath;
 extern Config g_config;
 extern std::mutex g_logMutex;
 extern bool g_consoleReady;
@@ -94,14 +89,9 @@ std::string WideToUtf8(const std::wstring& value);
 std::wstring Utf8ToWide(const std::string& value);
 void Log(const char* format, ...);
 void ClearLogFile();
-void OpenConsole();
 std::wstring GetModuleDirectory(HMODULE module);
 bool WriteAbsoluteJump(void* address, void* destination, uint8_t* savedBytes = nullptr);
 bool InstallInlineHook(InlineHook& hook, void* target, void* replacement, void** original, const char* name);
-std::string ReadIniString(const wchar_t* section, const wchar_t* key, const wchar_t* fallback);
-int ReadIniInt(const wchar_t* section, const wchar_t* key, int fallback);
-std::vector<std::string> SplitList(const std::string& value, char delimiter);
-void LoadConfig();
 
 // ---- il2cpp.cpp -----------------------------------------------------------
 bool ResolveIl2Cpp();

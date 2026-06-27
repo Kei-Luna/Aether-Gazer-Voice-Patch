@@ -5,7 +5,6 @@ namespace AGVoicePatch
 HMODULE g_module = nullptr;
 std::wstring g_moduleDir;
 std::wstring g_logPath;
-std::wstring g_iniPath;
 Config g_config;
 std::mutex g_logMutex;
 bool g_consoleReady = false;

@@ -30,3 +30,18 @@ endif()
 set_target_properties(AetherGazerVoicePatch PROPERTIES
     OUTPUT_NAME "AetherGazer-VoicePatch"
 )
+
+add_executable(AetherGazerVoicePatchLoader
+    src/loader.cpp
+)
+
+target_compile_features(AetherGazerVoicePatchLoader PRIVATE cxx_std_20)
+target_compile_definitions(AetherGazerVoicePatchLoader PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX)
+
+if(MSVC)
+    target_compile_options(AetherGazerVoicePatchLoader PRIVATE /utf-8 /W4 /permissive-)
+endif()
+
+set_target_properties(AetherGazerVoicePatchLoader PROPERTIES
+    OUTPUT_NAME "AetherGazer-VoicePatch"
+)

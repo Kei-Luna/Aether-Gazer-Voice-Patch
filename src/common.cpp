@@ -73,7 +73,7 @@ void Log(const char* format, ...)
         std::fflush(stdout);
     }
 
-    if (!g_config.log || g_logPath.empty())
+    if (g_logPath.empty())
     {
         return;
     }
@@ -106,7 +106,7 @@ void Log(const char* format, ...)
 
 void ClearLogFile()
 {
-    if (!g_config.log || g_logPath.empty() || g_logCleared)
+    if (g_logPath.empty() || g_logCleared)
     {
         return;
     }
@@ -124,21 +124,6 @@ void ClearLogFile()
     {
         CloseHandle(file);
     }
-}
-
-void OpenConsole()
-{
-    if (!g_config.console || g_consoleReady)
-    {
-        return;
-    }
-
-    AllocConsole();
-    FILE* unused = nullptr;
-    freopen_s(&unused, "CONOUT$", "w", stdout);
-    freopen_s(&unused, "CONOUT$", "w", stderr);
-    SetConsoleTitleW(L"AetherGazer-VoicePatch");
-    g_consoleReady = true;
 }
 
 std::wstring GetModuleDirectory(HMODULE module)
@@ -230,76 +215,4 @@ bool InstallInlineHook(InlineHook& hook, void* target, void* replacement, void**
     return true;
 }
 
-std::string ReadIniString(const wchar_t* section, const wchar_t* key, const wchar_t* fallback)
-{
-    wchar_t buffer[1024]{};
-    GetPrivateProfileStringW(section, key, fallback, buffer, static_cast<DWORD>(std::size(buffer)), g_iniPath.c_str());
-    return WideToUtf8(buffer);
-}
-
-int ReadIniInt(const wchar_t* section, const wchar_t* key, int fallback)
-{
-    return static_cast<int>(GetPrivateProfileIntW(section, key, fallback, g_iniPath.c_str()));
-}
-
-std::vector<std::string> SplitList(const std::string& value, char delimiter)
-{
-    std::vector<std::string> result;
-    size_t start = 0;
-    while (start <= value.size())
-    {
-        const size_t end = value.find(delimiter, start);
-        const size_t length = (end == std::string::npos ? value.size() : end) - start;
-        std::string token = value.substr(start, length);
-        // trim whitespace
-        const auto first = token.find_first_not_of(" \t\r\n");
-        const auto last = token.find_last_not_of(" \t\r\n");
-        if (first != std::string::npos)
-        {
-            result.push_back(token.substr(first, last - first + 1));
-        }
-        if (end == std::string::npos)
-        {
-            break;
-        }
-        start = end + 1;
-    }
-    return result;
-}
-
-void LoadConfig()
-{
-    g_iniPath = g_moduleDir + L"\\AetherGazer-VoicePatch.ini";
-
-    g_config.enabled = ReadIniInt(L"Voice", L"Enabled", 1) != 0;
-    g_config.log = ReadIniInt(L"Voice", L"Log", 1) != 0;
-    g_config.console = ReadIniInt(L"Voice", L"Console", 0) != 0;
-    g_config.logAllDownloads = ReadIniInt(L"Voice", L"LogAllDownloads", 1) != 0;
-    g_config.hookUnityWebRequest = ReadIniInt(L"Voice", L"HookUnityWebRequest", 1) != 0;
-
-    const std::string from = ReadIniString(L"Voice", L"FromSegment", L"/pc/resources/");
-    const std::string to = ReadIniString(L"Voice", L"ToSegment", L"/android/resources/");
-    if (!from.empty())
-    {
-        g_config.fromSegment = from;
-    }
-    if (!to.empty())
-    {
-        g_config.toSegment = to;
-    }
-
-    const std::string marker = ReadIniString(L"Voice", L"PathMarker", L"voice");
-    g_config.pathMarker = marker; // may be empty to disable localPath detection
-
-    const std::string tokens = ReadIniString(L"Voice", L"VoiceTokens", L"voice_hash;voice_package_list");
-    auto parsed = SplitList(tokens, ';');
-    if (!parsed.empty())
-    {
-        g_config.voiceTokens.clear();
-        for (auto& token : parsed)
-        {
-            g_config.voiceTokens.push_back(ToLower(token));
-        }
-    }
-}
 }

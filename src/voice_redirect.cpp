@@ -9,14 +9,30 @@ namespace AGVoicePatch
 using StartDownload3Fn = void* (*)(void* self, void* url, void* userData, int priority, void* method);
 using StartDownload6Fn = void* (*)(void* self, void* url, void* postData, void* header, void* callback, void* userData, int priority, void* method);
 using StartDownloadCacheFn = void* (*)(void* self, void* url, void* localPath, void* callback, int priority, bool forceDownload, void* method);
+using FormatUrlFn = void* (*)(void* self, void* url, void* method);
+using AssetStartDownload1Fn = void* (*)(void* url, void* method);
+using AssetStartDownload2Fn = void* (*)(void* url, void* userData, void* method);
+using AssetStartDownloadCacheFn = void* (*)(void* url, void* localCachePath, void* callback, bool forceDownload, void* method);
+using AssetGetWWWFn = void* (*)(void* url, void* method);
 using SetUrlFn = void (*)(void* self, void* url, void* method);
+using UnityWebRequestGetFn = void* (*)(void* url, void* method);
+using UnityWebRequestCtor2Fn = void (*)(void* self, void* url, void* methodName, void* method);
+using UnityWebRequestCtor4Fn = void (*)(void* self, void* url, void* methodName, void* downloadHandler, void* uploadHandler, void* method);
 // PCYsDownload.PCDownLoadManager.Download(string baseUrl, string fileRootDir, string[] downloadList)
 using PcDownloadFn = void (*)(void* self, void* baseUrl, void* fileRootDir, void* downloadList, void* method);
 
 static StartDownload3Fn g_startDownload3Orig = nullptr;
 static StartDownload6Fn g_startDownload6Orig = nullptr;
 static StartDownloadCacheFn g_startDownloadCacheOrig = nullptr;
+static FormatUrlFn g_formatUrlOrig = nullptr;
+static AssetStartDownload1Fn g_assetStartDownload1Orig = nullptr;
+static AssetStartDownload2Fn g_assetStartDownload2Orig = nullptr;
+static AssetStartDownloadCacheFn g_assetStartDownloadCacheOrig = nullptr;
+static AssetGetWWWFn g_assetGetWWWOrig = nullptr;
 static SetUrlFn g_setUrlOrig = nullptr;
+static UnityWebRequestGetFn g_unityWebRequestGetOrig = nullptr;
+static UnityWebRequestCtor2Fn g_unityWebRequestCtor2Orig = nullptr;
+static UnityWebRequestCtor4Fn g_unityWebRequestCtor4Orig = nullptr;
 static PcDownloadFn g_pcDownloadOrig = nullptr;
 
 static bool ContainsCaseInsensitive(const std::string& haystackLower, const std::string& needleLower)
@@ -43,7 +59,7 @@ static bool MatchesVoiceToken(const std::string& urlLower)
 
 void* RewriteVoiceUrl(void* il2cppUrl, const char* source, bool forceVoice)
 {
-    if (!g_config.enabled || !il2cppUrl)
+    if (!il2cppUrl)
     {
         return il2cppUrl;
     }
@@ -56,7 +72,8 @@ void* RewriteVoiceUrl(void* il2cppUrl, const char* source, bool forceVoice)
 
     const std::string urlLower = ToLower(url);
     const bool hasFrom = UrlHasFromSegment(urlLower);
-    const bool isVoice = forceVoice || (hasFrom && MatchesVoiceToken(urlLower));
+    const bool hasVoiceToken = MatchesVoiceToken(urlLower);
+    const bool isVoice = forceVoice || hasVoiceToken;
 
     if (!isVoice)
     {
@@ -125,10 +142,59 @@ static void* Hook_StartDownloadCache(void* self, void* url, void* localPath, voi
     return g_startDownloadCacheOrig(self, newUrl, localPath, callback, priority, forceDownload, method);
 }
 
+static void* Hook_FormatUrl(void* self, void* url, void* method)
+{
+    void* formatted = g_formatUrlOrig(self, url, method);
+    return RewriteVoiceUrl(formatted, "DownloadManager.formatUrl", false);
+}
+
+static void* Hook_AssetStartDownload1(void* url, void* method)
+{
+    void* newUrl = RewriteVoiceUrl(url, "Asset.StartDownload/1", false);
+    return g_assetStartDownload1Orig(newUrl, method);
+}
+
+static void* Hook_AssetStartDownload2(void* url, void* userData, void* method)
+{
+    void* newUrl = RewriteVoiceUrl(url, "Asset.StartDownload/2", false);
+    return g_assetStartDownload2Orig(newUrl, userData, method);
+}
+
+static void* Hook_AssetStartDownloadCache(void* url, void* localCachePath, void* callback, bool forceDownload, void* method)
+{
+    const bool voice = LocalPathIsVoice(localCachePath);
+    void* newUrl = RewriteVoiceUrl(url, "Asset.StartDownloadWitchCache", voice);
+    return g_assetStartDownloadCacheOrig(newUrl, localCachePath, callback, forceDownload, method);
+}
+
+static void* Hook_AssetGetWWW(void* url, void* method)
+{
+    void* newUrl = RewriteVoiceUrl(url, "Asset.GetWWW", false);
+    return g_assetGetWWWOrig(newUrl, method);
+}
+
 static void Hook_SetUrl(void* self, void* url, void* method)
 {
     void* newUrl = RewriteVoiceUrl(url, "UnityWebRequest.set_url", false);
     g_setUrlOrig(self, newUrl, method);
+}
+
+static void* Hook_UnityWebRequestGet(void* url, void* method)
+{
+    void* newUrl = RewriteVoiceUrl(url, "UnityWebRequest.Get", false);
+    return g_unityWebRequestGetOrig(newUrl, method);
+}
+
+static void Hook_UnityWebRequestCtor2(void* self, void* url, void* methodName, void* method)
+{
+    void* newUrl = RewriteVoiceUrl(url, "UnityWebRequest..ctor/2", false);
+    g_unityWebRequestCtor2Orig(self, newUrl, methodName, method);
+}
+
+static void Hook_UnityWebRequestCtor4(void* self, void* url, void* methodName, void* downloadHandler, void* uploadHandler, void* method)
+{
+    void* newUrl = RewriteVoiceUrl(url, "UnityWebRequest..ctor/4", false);
+    g_unityWebRequestCtor4Orig(self, newUrl, methodName, downloadHandler, uploadHandler, method);
 }
 
 // The bulk .ys files (assets AND voice) are downloaded here, NOT through
@@ -213,18 +279,65 @@ bool InstallVoiceRedirectHooks()
             reinterpret_cast<void**>(&g_startDownload6Orig), "DownloadManager.StartDownload/6");
     }
 
+    if (void* code = FindMethodPointer("", "DownloadManager", "formatUrl", 1))
+    {
+        any |= CreateAndEnable(code, reinterpret_cast<void*>(&Hook_FormatUrl),
+            reinterpret_cast<void**>(&g_formatUrlOrig), "DownloadManager.formatUrl/1");
+    }
+
+    if (void* code = FindMethodPointer("", "Asset", "StartDownload", 1))
+    {
+        any |= CreateAndEnable(code, reinterpret_cast<void*>(&Hook_AssetStartDownload1),
+            reinterpret_cast<void**>(&g_assetStartDownload1Orig), "Asset.StartDownload/1");
+    }
+
+    if (void* code = FindMethodPointer("", "Asset", "StartDownload", 2))
+    {
+        any |= CreateAndEnable(code, reinterpret_cast<void*>(&Hook_AssetStartDownload2),
+            reinterpret_cast<void**>(&g_assetStartDownload2Orig), "Asset.StartDownload/2");
+    }
+
+    if (void* code = FindMethodPointer("", "Asset", "StartDownloadWitchCache", 4))
+    {
+        any |= CreateAndEnable(code, reinterpret_cast<void*>(&Hook_AssetStartDownloadCache),
+            reinterpret_cast<void**>(&g_assetStartDownloadCacheOrig), "Asset.StartDownloadWitchCache/4");
+    }
+
+    if (void* code = FindMethodPointer("", "Asset", "GetWWW", 1))
+    {
+        any |= CreateAndEnable(code, reinterpret_cast<void*>(&Hook_AssetGetWWW),
+            reinterpret_cast<void**>(&g_assetGetWWWOrig), "Asset.GetWWW/1");
+    }
+
     if (void* code = FindMethodPointer("PCYsDownload", "PCDownLoadManager", "Download", 3))
     {
         any |= CreateAndEnable(code, reinterpret_cast<void*>(&Hook_PCDownload),
             reinterpret_cast<void**>(&g_pcDownloadOrig), "PCDownLoadManager.Download/3");
     }
 
-    if (g_config.hookUnityWebRequest)
     {
         if (void* code = FindMethodPointer("UnityEngine.Networking", "UnityWebRequest", "set_url", 1))
         {
             any |= CreateAndEnable(code, reinterpret_cast<void*>(&Hook_SetUrl),
                 reinterpret_cast<void**>(&g_setUrlOrig), "UnityWebRequest.set_url/1");
+        }
+
+        if (void* code = FindMethodPointer("UnityEngine.Networking", "UnityWebRequest", "Get", 1))
+        {
+            any |= CreateAndEnable(code, reinterpret_cast<void*>(&Hook_UnityWebRequestGet),
+                reinterpret_cast<void**>(&g_unityWebRequestGetOrig), "UnityWebRequest.Get/1");
+        }
+
+        if (void* code = FindMethodPointer("UnityEngine.Networking", "UnityWebRequest", ".ctor", 2))
+        {
+            any |= CreateAndEnable(code, reinterpret_cast<void*>(&Hook_UnityWebRequestCtor2),
+                reinterpret_cast<void**>(&g_unityWebRequestCtor2Orig), "UnityWebRequest..ctor/2");
+        }
+
+        if (void* code = FindMethodPointer("UnityEngine.Networking", "UnityWebRequest", ".ctor", 4))
+        {
+            any |= CreateAndEnable(code, reinterpret_cast<void*>(&Hook_UnityWebRequestCtor4),
+                reinterpret_cast<void**>(&g_unityWebRequestCtor4Orig), "UnityWebRequest..ctor/4");
         }
     }
 

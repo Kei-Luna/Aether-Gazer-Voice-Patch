@@ -13,21 +13,12 @@ void Initialize()
     g_moduleDir = GetModuleDirectory(g_module);
     g_logPath = g_moduleDir + L"\\AetherGazer-VoicePatch.log";
 
-    LoadConfig();
     ClearLogFile();
-    OpenConsole();
 
-    Log("Aether-Gazer Voice Patch loaded. enabled=%d from=%s to=%s tokens=%zu",
-        g_config.enabled ? 1 : 0,
+    Log("Aether-Gazer Voice Patch loaded. from=%s to=%s tokens=%zu",
         g_config.fromSegment.c_str(),
         g_config.toSegment.c_str(),
         g_config.voiceTokens.size());
-
-    if (!g_config.enabled)
-    {
-        Log("disabled by config, idling");
-        return;
-    }
 }
 
 static DWORD WINAPI InitThread(void*)
@@ -38,7 +29,7 @@ static DWORD WINAPI InitThread(void*)
     // injected, and the DownloadManager methods must be hooked before the splash
     // voice phase runs. Retry until the hooks are in place.
     bool installed = false;
-    for (int attempt = 0; g_config.enabled && !installed && attempt < 600; ++attempt)
+    for (int attempt = 0; !installed && attempt < 600; ++attempt)
     {
         if (GetModuleHandleW(L"GameAssembly.dll"))
         {
@@ -62,7 +53,7 @@ static DWORD WINAPI InitThread(void*)
     {
         Log("voice redirect hooks active");
     }
-    else if (g_config.enabled)
+    else
     {
         Log("WARNING: failed to install voice redirect hooks");
     }
