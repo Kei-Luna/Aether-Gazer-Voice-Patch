@@ -36,6 +36,15 @@ struct Il2CppStringLayout
     uint16_t chars[1];
 };
 
+struct Il2CppStringArrayLayout
+{
+    void* klass;
+    void* monitor;
+    void* bounds;
+    size_t maxLength;
+    void* vector[1];
+};
+
 // IL2CPP MethodInfo: the very first field is the compiled native code pointer.
 inline void* MethodCodePointer(void* methodInfo)
 {
@@ -57,12 +66,9 @@ struct Config
     bool logAllDownloads = true; // log every resource URL that carries the configured PC branch
     std::string fromSegment = "/pc/resources/";
     std::string toSegment = "/android/resources/";
-    // A url is treated as voice (and therefore redirected) when it contains the
-    // fromSegment AND either: its cache localPath contains pathMarker, OR the url
-    // contains one of voiceTokens (used when no localPath is available, e.g. the
-    // raw UnityWebRequest that fetches voice_package_list).
-    std::string pathMarker = "voice"; // matched against the StartDownloadWithCache localPath
-    std::vector<std::string> voiceTokens = {"voice_hash", "voice_package_list"};
+    // A url is treated as voice when it contains one of these tokens, or when
+    // the caller explicitly marks it as voice based on a local /voice/ path.
+    std::vector<std::string> voiceTokens = {"voice_hash"};
 };
 
 // ---- globals (state.cpp) --------------------------------------------------

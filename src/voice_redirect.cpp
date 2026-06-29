@@ -111,12 +111,56 @@ void* RewriteVoiceUrl(void* il2cppUrl, const char* source, bool forceVoice)
 
 static bool LocalPathIsVoice(void* il2cppLocalPath)
 {
-    if (g_config.pathMarker.empty() || !il2cppLocalPath)
+    if (!il2cppLocalPath)
     {
         return false;
     }
-    const std::string path = ToLower(Il2CppStringToUtf8(il2cppLocalPath));
-    return ContainsCaseInsensitive(path, ToLower(g_config.pathMarker));
+
+    std::string path = ToLower(Il2CppStringToUtf8(il2cppLocalPath));
+    std::replace(path.begin(), path.end(), '\\', '/');
+    return path.find("/voice/") != std::string::npos ||
+        path.ends_with("/voice");
+}
+
+static void LogStringArraySample(const char* source, void* il2cppArray, size_t maxItems)
+{
+    if (!il2cppArray)
+    {
+        Log("[%s] downloadList=null", source);
+        return;
+    }
+
+    auto* array = reinterpret_cast<Il2CppStringArrayLayout*>(il2cppArray);
+    Log("[%s] downloadList count=%zu", source, array->maxLength);
+
+    const size_t count = std::min(array->maxLength, maxItems);
+    for (size_t i = 0; i < count; ++i)
+    {
+        Log("[%s] downloadList[%zu]=%s", source, i, Il2CppStringToUtf8(array->vector[i]).c_str());
+    }
+}
+
+static bool DownloadListContainsVoice(void* il2cppArray)
+{
+    if (!il2cppArray)
+    {
+        return false;
+    }
+
+    auto* array = reinterpret_cast<Il2CppStringArrayLayout*>(il2cppArray);
+    for (size_t i = 0; i < array->maxLength; ++i)
+    {
+        std::string item = ToLower(Il2CppStringToUtf8(array->vector[i]));
+        std::replace(item.begin(), item.end(), '\\', '/');
+        if (item.find("../voice/") != std::string::npos ||
+            item.find("/voice/") != std::string::npos ||
+            item.starts_with("voice/"))
+        {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 // ---- hook bodies ----------------------------------------------------------
@@ -198,18 +242,19 @@ static void Hook_UnityWebRequestCtor4(void* self, void* url, void* methodName, v
 }
 
 // The bulk .ys files (assets AND voice) are downloaded here, NOT through
-// DownloadManager. Asset batches use fileRootDir ".../Windows/...", voice batches
-// use ".../Voice/...", so fileRootDir is the discriminator; rewrite the shared
-// baseUrl for voice batches only.
+// DownloadManager. Most asset batches use fileRootDir ".../Windows/...", while
+// voice batches may use either a Voice root or "../Voice/..." entries in the
+// download list; rewrite the shared baseUrl for voice batches only.
 static void Hook_PCDownload(void* self, void* baseUrl, void* fileRootDir, void* downloadList, void* method)
 {
-    const bool voice = LocalPathIsVoice(fileRootDir);
+    const bool voice = LocalPathIsVoice(fileRootDir) || DownloadListContainsVoice(downloadList);
     if (g_config.logAllDownloads)
     {
         Log("[PCDownLoadManager.Download] voice=%d baseUrl=%s fileRootDir=%s",
             voice ? 1 : 0,
             Il2CppStringToUtf8(baseUrl).c_str(),
             Il2CppStringToUtf8(fileRootDir).c_str());
+        LogStringArraySample("PCDownLoadManager.Download", downloadList, 8);
     }
     void* newBase = RewriteVoiceUrl(baseUrl, "PCDownLoadManager.Download", voice);
     g_pcDownloadOrig(self, newBase, fileRootDir, downloadList, method);
